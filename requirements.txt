@@ -1,0 +1,4 @@
+zeep
+xmljson
+requests
+argparse
