@@ -15,14 +15,16 @@ class AXLHelper:
     def __init__(self, ucm_host, auth, version=None, verify=None, timeout=60):
         """
 
-        :param ucm_host: IP/FQDN of host to direct AXL requests to
+        :param ucm_host: IP/FQDN of host to direct AXL requests to, optional with port spec
         :param auth: passed to requests.Session object. For basic authentication simply pass a (user/password) tuple
         :param version: String of WSDL version to use. For example: '12.0'
         :param verify: set to False to disable SSL key validation
         :param timeout: zeep timeout
         """
         self.ucm_host = ucm_host
-        self.axl_url = 'https://{ucm_host}:8443/axl/'.format(ucm_host=ucm_host)
+        if not ':' in ucm_host:
+            ucm_host += ':8443'
+        self.axl_url = 'https://{ucm_host}/axl/'.format(ucm_host=ucm_host)
 
         self.session = requests.Session()
         self.session.auth = auth
@@ -288,8 +290,7 @@ class AXLHelper:
                           'provideOutsideDialtone', 'callingPartyNumberingPlan', 'callingPartyNumberType',
                           'calledPartyNumberingPlan', 'calledPartyNumberType', 'authorizationCodeRequired',
                           'authorizationLevelRequired', 'clientCodeRequired', 'withTag', 'withValueClause',
-                          'resourcePriorityNamespaceName', 'routeClass', 'externalCallControl',
-                          'isEmergencyServiceNumber']
+                          'resourcePriorityNamespaceName', 'routeClass', 'externalCallControl']
 
     def list_route_pattern(self, **search_criteria):
         search_criteria = self.filter_search_criteria(search_criteria, ['pattern', 'description', 'routePartitionName'],
@@ -360,9 +361,11 @@ class AXLHelper:
                   'dialPlanName', 'digitDiscardInstructionName', 'patternUrgency', 'routeFilterName',
                   'calledPartyPrefixDigits', 'calledPartyNumberingPlan', 'calledPartyNumberType',
                   'mlppPreemptionDisabled']
+
     def list_called_party_transformation_pattern(self, **search_criteria):
         search_criteria = self.filter_search_criteria(search_criteria,
-                                                      ['pattern', 'description', 'routePartitionName', 'dialPlanName', 'routeFilterName'],
+                                                      ['pattern', 'description', 'routePartitionName', 'dialPlanName',
+                                                       'routeFilterName'],
                                                       'pattern')
         r = self.service.listCalledPartyTransformationPattern(searchCriteria=search_criteria,
                                                               returnedTags={t: '' for t in self.CDPTX_TAGS})
@@ -504,6 +507,38 @@ class AXLHelper:
         return p
 
     ################ translation pattern
+    TRANS_PATTERN_TAGS = ['pattern', 'description', 'routePartitionName']
+
+    def list_translation(self, **search_criteria):
+        search_criteria = self.filter_search_criteria(search_criteria, ['pattern', 'description', 'routePartitionName'],
+                                                      'pattern')
+        r = self.service.listTransPattern(searchCriteria=search_criteria,
+                                          returnedTags={t: '' for t in self.TRANS_PATTERN_TAGS})
+        return self.handle_list_response(r)
+
+    def add_translation(self, pattern, partition, description,
+                        digit_discard='', prefix_digits='',
+                        called_party_transformation_mask='',
+                        block_enable=False, urgency=True,
+                        outside_dial_tone=False, css_inheritance=True,
+                        dont_wait_for_idt=True):
+        translation = {
+            'pattern': pattern,
+            'routePartitionName': partition,
+            'description': description,
+            'usage': 'Translation',
+            'blockEnable': block_enable,
+            'patternUrgency': urgency,
+            'provideOutsideDialtone': outside_dial_tone,
+            'digitDiscardInstructionName': digit_discard,
+            'prefixDigitsOut': prefix_digits,
+            'useOriginatorCss': css_inheritance,
+            'dontWaitForIDTOnSubsequentHops': dont_wait_for_idt,
+            'calledPartyTransformationMask': called_party_transformation_mask
+        }
+        r = self.service.addTransPattern(transPattern=translation)
+        return r
+
     def add_update_translation(self, pattern, partition, description,
                                digit_discard='', prefix_digits='',
                                called_party_transformation_mask='',
@@ -534,6 +569,10 @@ class AXLHelper:
             translation.pop('usage', None)
             p = self.service.updateTransPattern(**translation)
         return p['return']
+
+    def remove_translation(self, uuid):
+        r = self.service.removeTransPattern(uuid=uuid)
+        return r
 
     ########## CnPTx
     def add_update_cnptx(self, pattern, partition, description, discard, prefix, plan, type, mask=''):
