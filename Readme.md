@@ -14,3 +14,9 @@ With this Python script for a given NPA/NXX the required called party transforma
 provisioned in Cisco UCM to make sure that +E.164 called party information is properly transformed to the required
 number format.
 The information needed to determine the transformations is obtained from localcallingguide.com
+
+To run the Python script:
+* install the latest Python 3.x relase from https://wwww.python.org
+* create a virtual environment for this project (optional, you can also use the main Python instance)
+* install the requirements for this project: `pip install -R requirements.txt`
+* run the script: `python pynanp.py --help` 
