@@ -16,7 +16,7 @@ number format.
 The information needed to determine the transformations is obtained from localcallingguide.com
 
 To run the Python script:
-* install the latest Python 3.x relase from https://wwww.python.org
+* install the latest Python 3.x relase from https://www.python.org
 * create a virtual environment for this project (optional, you can also use the main Python instance)
 * install the requirements for this project: `pip install -R requirements.txt`
 * run the script: `python pynanp.py --help` 
