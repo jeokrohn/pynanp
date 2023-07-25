@@ -38,7 +38,7 @@ def xmllocalprefix(npa, nxx):
     return ['{npa}{nxx}'.format(npa=prefix['npa'], nxx=prefix['nxx']) for prefix in data['lca-data']['prefix']]
 
 
-def single_pattern(prefix5d, trailing_digits, home_npa, hnpalocal7d):
+def single_pattern(prefix5d, trailing_digits, home_npa, hnpalocal7d, ios):
     """
     Creates a single pattern
     :param prefix5d: first five digits of npa/nxx
@@ -70,27 +70,52 @@ def single_pattern(prefix5d, trailing_digits, home_npa, hnpalocal7d):
             done = True
         if start_digit == stop_digit:
             # add a single digit
+            if ios:
+                r += ','
             r += start_digit
         else:
             if int(stop_digit) - int(start_digit) == 1:
                 # something like "12"
-                r += start_digit
-                r += stop_digit
+                if ios:
+                    r += ',' + start_digit + ',' + stop_digit
+                else:
+                    r += start_digit + stop_digit
             else:
                 # something like "1-3"
-                r += '{}-{}'.format(start_digit, stop_digit)
+                if ios:
+                    r += ',{}-{}'.format(start_digit, stop_digit)
+                else:
+                    r += '{}-{}'.format(start_digit, stop_digit)
             # if .. else ..
         # if .. else ..
         start_digit = digit
     if r == '0-9':
         r = 'X'
-    if len(r) > 1:
+
+    if ios:
+        if len(r) > 2:
+            r = '[{}]'.format(r)
+        else:
+            r = r.replace(',', '')
+
+    if not ios and len(r) > 1:
         r = '[{}]'.format(r)
     r = '{}{}'.format(prefix5d, r)
+
     if hnpalocal7d and prefix5d.startswith(home_npa):
-        r = '\\+1{npa}.{trailing}XXXX'.format(npa=home_npa, trailing=r[3:])
+        if ios:
+            r = '   e164 +1{npa}{trailing}....'.format(npa=home_npa, trailing=r[3:])
+        else:
+            r = '\\+1{npa}.{trailing}XXXX'.format(npa=home_npa, trailing=r[3:])
     else:
-        r = '\\+1.{trailing}XXXX'.format(trailing=r)
+        if ios:
+            r = '   e164 +1{trailing}....'.format(trailing=r)
+        else:
+            r = '\\+1.{trailing}XXXX'.format(trailing=r)
+
+    if ios:
+        r = r.replace('[,', '[')
+
     return r
 
 
@@ -145,9 +170,14 @@ This route list has to be created prior to calling the script.""")
                       help='Don\'t write to UCM. Existing patterns are read if possible.')
     args.add_argument('--patternsonly', required=False, action='store_true',
                       help='Only print patterns required. No UCM details nor user credentials are required.')
+    args.add_argument('--ios', required=False, action='store_true',
+                      help='Creates entries for an IOS e164-pattern-map. Automatically invokes patternsonly parameter as well.')
 
 
     parsed_args = args.parse_args()
+
+    if parsed_args.ios:
+        parsed_args.patternsonly = True
 
     # ucm, user, and pass are required if patternsonly is not set
     if not parsed_args.patternsonly and (parsed_args.ucm is None or parsed_args.user is None or parsed_args.pwd is None):
@@ -167,7 +197,8 @@ This route list has to be created prior to calling the script.""")
     patterns = [single_pattern(prefix5d,
                                ''.join((x[-1] for x in npanxx if x.startswith(prefix5d))),
                                parsed_args.npa,
-                               parsed_args.hnpalocal7d) for prefix5d in prefixes]
+                               parsed_args.hnpalocal7d,
+                               parsed_args.ios) for prefix5d in prefixes]
     print('{} patterns are required'.format(len(patterns)))
 
     # if only a list of patterns is required then print the list of patterns and return
