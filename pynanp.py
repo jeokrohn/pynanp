@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 In some areas in the US carriers require that called party numbers sent to the PSTN by an enterprise need to
 differentiate between different destination types. For example in NPA 816 these number formats are required:
