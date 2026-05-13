@@ -16,13 +16,15 @@ number format.
 The information needed to determine the transformations is obtained from localcallingguide.com
 """
 
+import argparse
+import functools
+import os
+import xml.etree.ElementTree as ET
+
 import requests
 import xmljson
-import xml.etree.ElementTree as ET
+
 import ucmaxl
-import argparse
-import os
-import functools
 
 
 def xmllocalprefix(npa, nxx):
@@ -32,7 +34,7 @@ def xmllocalprefix(npa, nxx):
     :param nxx:
     :return:
     """
-    url = "https://www.localcallingguide.com/xmllocalprefix.php"
+    url = 'https://www.localcallingguide.com/xmllocalprefix.php'
     params = {'npa': npa, 'nxx': nxx}
     response = requests.get(url, params=params)
     data = xmljson.Parker(dict_type=dict).data(ET.fromstring(response.text))
@@ -141,39 +143,53 @@ def assert_partition(axl, name, read_only=True):
             print('Partition {} created.'.format(name))
     return r
 
+
 def main():
     """
     Main code
     :return: None
     """
-    args = argparse.ArgumentParser(description="""Provision route patterns or called party transformation patterns on UCM
+    args = argparse.ArgumentParser(
+        description="""Provision route patterns or called party transformation patterns on UCM
 for a given NPA NXX to make sure that NPA/NXXes considered local are treated accordingly.
 route patterns or called party transformation patterns matching on local NPA/NXXes are provisioned in a partition
 local{npa}{nxx} where {npa} and {nxx} are replaced with the NPA/NXXes of the location. This partition is created if it
 doesn't exist already. In this partition patterns other than the ones determined by this script are deleted.
 
-Route patterns and called party transformation patterns are provisioned with a called party transform to transform 
+Route patterns and called party transformation patterns are provisioned with a called party transform to transform
 HNPA local to 7D and FNPA local 10D.
 
 Route patterns use a route list local{npa}{nxx} where {npa} and {nxx} are replaced with the NPA/NXXes of the location.
-This route list has to be created prior to calling the script.""")
+This route list has to be created prior to calling the script."""
+    )
 
     args.add_argument('--npa', required=True, help='NPA of the GW location')
     args.add_argument('--nxx', required=True, help='NXX of the GW location')
     args.add_argument('--ucm', required=False, help='IP or FQDN of UCM publisher host')
     args.add_argument('--user', required=False, help='AXL user with write access to UCM')
     args.add_argument('--pwd', required=False, help='Password for AXL user with write access to UCM')
-    args.add_argument('--hnpalocal7d', required=False, action='store_true',
-                      help='Transform HNPA local destinations to 7D')
-    args.add_argument('--routepattern', required=False, action='store_true',
-                      help='Provision route patterns. Else called party transforms are provisioned')
-    args.add_argument('--readonly', required=False, action='store_true',
-                      help='Don\'t write to UCM. Existing patterns are read if possible.')
-    args.add_argument('--patternsonly', required=False, action='store_true',
-                      help='Only print patterns required. No UCM details nor user credentials are required.')
-    args.add_argument('--ios', required=False, action='store_true',
-                      help='Creates entries for an IOS e164-pattern-map. Automatically invokes patternsonly parameter as well.')
-
+    args.add_argument('--hnpalocal7d', required=False, action='store_true', help='Transform HNPA local destinations to 7D')
+    args.add_argument(
+        '--routepattern',
+        required=False,
+        action='store_true',
+        help='Provision route patterns. Else called party transforms are provisioned',
+    )
+    args.add_argument(
+        '--readonly', required=False, action='store_true', help="Don't write to UCM. Existing patterns are read if possible."
+    )
+    args.add_argument(
+        '--patternsonly',
+        required=False,
+        action='store_true',
+        help='Only print patterns required. No UCM details nor user credentials are required.',
+    )
+    args.add_argument(
+        '--ios',
+        required=False,
+        action='store_true',
+        help='Creates entries for an IOS e164-pattern-map. Automatically invokes patternsonly parameter as well.',
+    )
 
     parsed_args = args.parse_args()
 
@@ -195,11 +211,16 @@ This route list has to be created prior to calling the script.""")
     prefixes.sort()
 
     # required patterns
-    patterns = [single_pattern(prefix5d,
-                               ''.join((x[-1] for x in npanxx if x.startswith(prefix5d))),
-                               parsed_args.npa,
-                               parsed_args.hnpalocal7d,
-                               parsed_args.ios) for prefix5d in prefixes]
+    patterns = [
+        single_pattern(
+            prefix5d,
+            ''.join((x[-1] for x in npanxx if x.startswith(prefix5d))),
+            parsed_args.npa,
+            parsed_args.hnpalocal7d,
+            parsed_args.ios,
+        )
+        for prefix5d in prefixes
+    ]
     print('{} patterns are required'.format(len(patterns)))
 
     # if only a list of patterns is required then print the list of patterns and return
@@ -208,8 +229,7 @@ This route list has to be created prior to calling the script.""")
         return
 
     # AXL helper object
-    axl = ucmaxl.AXLHelper(parsed_args.ucm, auth=(parsed_args.user, parsed_args.pwd), version='10.0', verify=False,
-                           timeout=60)
+    axl = ucmaxl.AXLHelper(parsed_args.ucm, auth=(parsed_args.user, parsed_args.pwd), version='10.0', verify=False, timeout=60)
 
     # assert existence of partition local{npa}{nxx}
     npa_nxx_name = 'local{}{}'.format(parsed_args.npa, parsed_args.nxx)
@@ -222,27 +242,28 @@ This route list has to be created prior to calling the script.""")
             print('route list {} needs to be created before executing the script'.format(npa_nxx_name))
             exit(2)
         # set methods for route patterns
-        lister = functools.partial(axl.list_route_pattern,
-                                   routePartitionName=npa_nxx_name)
+        lister = functools.partial(axl.list_route_pattern, routePartitionName=npa_nxx_name)
 
-        adder = functools.partial(axl.add_route_pattern,
-                                  routePartitionName=npa_nxx_name,
-                                  digitDiscardInstructionName='PreDot',
-                                  patternUrgency=True,
-                                  blockEnable=False,
-                                  destination={'routeListName':npa_nxx_name},
-                                  networkLocation='OffNet',
-                                  description='local destination in NPA-NXX {}-{}'.format(parsed_args.npa,
-                                                                                          parsed_args.nxx))
+        adder = functools.partial(
+            axl.add_route_pattern,
+            routePartitionName=npa_nxx_name,
+            digitDiscardInstructionName='PreDot',
+            patternUrgency=True,
+            blockEnable=False,
+            destination={'routeListName': npa_nxx_name},
+            networkLocation='OffNet',
+            description='local destination in NPA-NXX {}-{}'.format(parsed_args.npa, parsed_args.nxx),
+        )
         remover = functools.partial(axl.remove_route_pattern)
     else:
         # methods for called party transformation patterns
-        lister = functools.partial(axl.list_called_party_transformation_pattern,
-                                   routePartitionName=npa_nxx_name)
-        adder = functools.partial(axl.add_called_party_transformation_pattern,
-                                  routePartitionName=npa_nxx_name,
-                                  digitDiscardInstructionName='PreDot',
-                                  description='local destination in NPA-NXX {}-{}'.format(parsed_args.npa, parsed_args.nxx))
+        lister = functools.partial(axl.list_called_party_transformation_pattern, routePartitionName=npa_nxx_name)
+        adder = functools.partial(
+            axl.add_called_party_transformation_pattern,
+            routePartitionName=npa_nxx_name,
+            digitDiscardInstructionName='PreDot',
+            description='local destination in NPA-NXX {}-{}'.format(parsed_args.npa, parsed_args.nxx),
+        )
         remover = functools.partial(axl.remove_called_party_transformation_pattern)
 
     # get all called patterns in that partition
@@ -273,6 +294,7 @@ This route list has to be created prior to calling the script.""")
         print('Removing pattern {}'.format(pattern['pattern']))
         if not parsed_args.readonly:
             remover(uuid=pattern['uuid'])
+
 
 if __name__ == '__main__':
     main()

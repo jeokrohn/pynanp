@@ -9,3 +9,25 @@ dependencies = [
     "requests",
 ]
 
+[dependency-groups]
+dev = [
+    "ruff",
+    "mypy",
+    "types-requests",
+    "pre-commit",
+]
+
+[tool.ruff]
+line-length = 130
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.mypy]
+python_version = "3.13"
+strict = false
+ignore_missing_imports = true
+

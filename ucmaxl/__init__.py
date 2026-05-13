@@ -1,14 +1,16 @@
 """
 AXL helper to wrap SOAP methods created based on the UCM AXL WSDL
 """
+
+import os
+import tempfile
+from collections import OrderedDict
+
+import requests
 import zeep
 import zeep.cache
-import zeep.helpers
 import zeep.exceptions
-import requests
-import tempfile
-import os
-from collections import OrderedDict
+import zeep.helpers
 
 
 class AXLHelper:
@@ -22,7 +24,7 @@ class AXLHelper:
         :param timeout: zeep timeout
         """
         self.ucm_host = ucm_host
-        if not ':' in ucm_host:
+        if ':' not in ucm_host:
             ucm_host += ':8443'
         self.axl_url = 'https://{ucm_host}/axl/'.format(ucm_host=ucm_host)
 
@@ -40,17 +42,15 @@ class AXLHelper:
         self.wsdl = os.path.join(os.path.dirname(__file__), 'WSDL', wsdl_version, 'AXLAPI.wsdl')
 
         self.cache = zeep.cache.SqliteCache(
-            path=os.path.join(tempfile.gettempdir(), 'sqlite_{}.db'.format(self.ucm_host)),
-            timeout=60)
+            path=os.path.join(tempfile.gettempdir(), 'sqlite_{}.db'.format(self.ucm_host)), timeout=60
+        )
 
-        self.client = zeep.Client(wsdl=self.wsdl,
-                                  transport=zeep.Transport(timeout=timeout,
-                                                           operation_timeout=timeout,
-                                                           cache=self.cache,
-                                                           session=self.session))
+        self.client = zeep.Client(
+            wsdl=self.wsdl,
+            transport=zeep.Transport(timeout=timeout, operation_timeout=timeout, cache=self.cache, session=self.session),
+        )
 
-        self.service = self.client.create_service('{http://www.cisco.com/AXLAPIService/}AXLAPIBinding',
-                                                  self.axl_url)
+        self.service = self.client.create_service('{http://www.cisco.com/AXLAPIService/}AXLAPIBinding', self.axl_url)
         return
 
     def __getattr__(self, item):
@@ -92,8 +92,7 @@ class AXLHelper:
         :param reset_type: 'Reset', 'Restart', 'Apply Configuration'
         :return:
         """
-        return self.service.doDeviceReset(isMGCP=is_mgcp, deviceName=name, isHardReset=is_hard_reset,
-                                          deviceResetType=reset_type)
+        return self.service.doDeviceReset(isMGCP=is_mgcp, deviceName=name, isHardReset=is_hard_reset, deviceResetType=reset_type)
 
     @staticmethod
     def filter_search_criteria(search_criteria, supported_search_criteria, default_search_criteria=None):
@@ -114,29 +113,22 @@ class AXLHelper:
     ################ service parameter
     def get_service_parameter(self, process_node_name, name, service):
         tags = ['name', 'service', 'value', 'valueType', 'processNodeName']
-        r = self.service.getServiceParameter(processNodeName=process_node_name,
-                                             name=name,
-                                             service=service,
-                                             returnedTags={t: '' for t in tags})
+        r = self.service.getServiceParameter(
+            processNodeName=process_node_name, name=name, service=service, returnedTags={t: '' for t in tags}
+        )
         return r['return']['serviceParameter']
 
     def get_enterprise_parameter(self, name):
-        return self.get_service_parameter(process_node_name='EnterpriseWideData',
-                                          service='Enterprise Wide',
-                                          name=name)
+        return self.get_service_parameter(process_node_name='EnterpriseWideData', service='Enterprise Wide', name=name)
 
     def update_service_parameter(self, process_node_name, name, service, value):
-        r = self.service.updateServiceParameter(processNodeName=process_node_name,
-                                                name=name,
-                                                service=service,
-                                                value=value)
+        r = self.service.updateServiceParameter(processNodeName=process_node_name, name=name, service=service, value=value)
         return r['return']
 
     def update_enterprise_parameter(self, name, value):
-        return self.update_service_parameter(process_node_name='EnterpriseWideData',
-                                             service='Enterprise Wide',
-                                             name=name,
-                                             value=value)
+        return self.update_service_parameter(
+            process_node_name='EnterpriseWideData', service='Enterprise Wide', name=name, value=value
+        )
 
     def list_service_parameter(self, **search_criteria):
         """
@@ -144,24 +136,21 @@ class AXLHelper:
         :param search_criteria: supported search criteria: processNodeName, service
         :return: list of service parameters
         """
-        search_criteria = self.filter_search_criteria(search_criteria, ['processNodeName', 'service'],
-                                                      'processNodeName')
+        search_criteria = self.filter_search_criteria(search_criteria, ['processNodeName', 'service'], 'processNodeName')
 
         tags = ['processNodeName', 'name', 'service', 'value', 'valueType']
         r = self.service.listServiceParameter(searchCriteria=search_criteria, returnedTags={t: '' for t in tags})
         return self.handle_list_response(r)
 
     def list_css(self, **search_criteria):
-        search_criteria = self.filter_search_criteria(search_criteria, ['description', 'partitionUsage', 'name'],
-                                                      'name')
+        search_criteria = self.filter_search_criteria(search_criteria, ['description', 'partitionUsage', 'name'], 'name')
         tags = ['description', 'clause', 'dialPlanWizardGenId', 'partitionUsage', 'name']
         r = self.service.listCss(searchCriteria=search_criteria, returnedTags={t: '' for t in tags})
         return self.handle_list_response(r)
 
     ############### process nodes
     def list_process_node(self, **search_criteria):
-        search_criteria = self.filter_search_criteria(search_criteria, ['name', 'description', 'processNodeRole'],
-                                                      'name')
+        search_criteria = self.filter_search_criteria(search_criteria, ['name', 'description', 'processNodeRole'], 'name')
         # tags = ['name', 'description', 'ipv6Name', 'nodeUsage', 'lbmHubGroup', 'processNodeRole']
         # requesting processNodeRole fails as zeep fails to parse this part of thre response:
         #    <processNodeRole>CUCM Voice/Video</processNodeRole>
@@ -181,17 +170,16 @@ class AXLHelper:
 
         # we do a direct update via SQL. For some reason the thick AXL method did not work?
         # update ProcessNode set Name='emea-imp-pub.tmevalidate.com' where pkid='5f9a6a63-9fd0-49c0-8fd4-99de7894e975'
-        sql = 'update processnode set name=\'{new_name}\' where {key}=\'{value}\''.format(new_name=new_name, key=key,
-                                                                                          value=value)
+        sql = "update processnode set name='{new_name}' where {key}='{value}'".format(new_name=new_name, key=key, value=value)
         r = self.sql_update(sql=sql)
         return r
 
     ############### user
     def list_user(self, **search_criteria):
         returned_tags = search_criteria.pop('returnedTags', None)
-        search_criteria = self.filter_search_criteria(search_criteria,
-                                                      ['firstName', 'lastName', 'userid', 'department'],
-                                                      'userid')
+        search_criteria = self.filter_search_criteria(
+            search_criteria, ['firstName', 'lastName', 'userid', 'department'], 'userid'
+        )
         if returned_tags is None:
             returned_tags = {'uuid': '', 'userid': '', 'firstName': '', 'lastName': ''}
         r = self.service.listUser(searchCriteria=search_criteria, returnedTags=returned_tags)
@@ -199,33 +187,29 @@ class AXLHelper:
 
     ############### CSS
     def add_update_css(self, name, description, clause):
-        member_list = [
-            {'routePartitionName': p,
-             'index': i
-             }
-            for i, p in enumerate(clause.split(':'), start=1)]
-        css = {
-            'name': name,
-            'description': description,
-            'members': {'member': member_list}
-        }
+        member_list = [{'routePartitionName': p, 'index': i} for i, p in enumerate(clause.split(':'), start=1)]
+        css = {'name': name, 'description': description, 'members': {'member': member_list}}
         try:
-            p = self.service.getCss(name=name,
-                                    returnedTags={'description': '', 'clause': ''})
-        except zeep.exceptions.Fault as e:
+            p = self.service.getCss(name=name, returnedTags={'description': '', 'clause': ''})
+        except zeep.exceptions.Fault:
             p = self.service.addCss(css=css)
         else:
-            p = self.service.updateCss(name=name,
-                                       description=description,
-                                       members={'member': member_list})
+            p = self.service.updateCss(name=name, description=description, members={'member': member_list})
 
         return p['return']
 
     ############### route partition
     def list_route_partition(self, **search_criteria):
         search_criteria = self.filter_search_criteria(search_criteria, ['name', 'description'], 'name')
-        tags = ['name', 'description', 'dialPlanWizardGenId', 'timeScheduleIdName', 'useOriginatingDeviceTimeZone',
-                'timeZone', 'partitionUsage']
+        tags = [
+            'name',
+            'description',
+            'dialPlanWizardGenId',
+            'timeScheduleIdName',
+            'useOriginatingDeviceTimeZone',
+            'timeZone',
+            'partitionUsage',
+        ]
         r = self.service.listRoutePartition(searchCriteria=search_criteria, returnedTags={t: '' for t in tags})
         return self.handle_list_response(r)
 
@@ -234,8 +218,15 @@ class AXLHelper:
         assert search_criteria is not None, 'Search criteria mantatory'
         assert len(search_criteria) == 1, 'Only name or uuid can be used'
 
-        tags = ['name', 'description', 'dialPlanWizardGenId', 'timeScheduleIdName', 'useOriginatingDeviceTimeZone',
-                'timeZone', 'partitionUsage']
+        tags = [
+            'name',
+            'description',
+            'dialPlanWizardGenId',
+            'timeScheduleIdName',
+            'useOriginatingDeviceTimeZone',
+            'timeZone',
+            'partitionUsage',
+        ]
         try:
             r = self.service.getRoutePartition(returnedTags={t: '' for t in tags}, **search_criteria)
         except zeep.exceptions.Fault as e:
@@ -280,23 +271,51 @@ class AXLHelper:
         return r
 
     ################ route pattern
-    ROUTE_PATTERN_TAGS = ['pattern', 'description', 'usage', 'routePartitionName', 'blockEnable',
-                          'calledPartyTransformationMask',
-                          'callingPartyTransformationMask', 'useCallingPartyPhoneMask', 'callingPartyPrefixDigits',
-                          'dialPlanName', 'dialPlanWizardGenId', 'digitDiscardInstructionName', 'networkLocation',
-                          'patternUrgency', 'prefixDigitsOut', 'routeFilterName', 'callingLinePresentationBit',
-                          'callingNamePresentationBit', 'connectedLinePresentationBit', 'connectedNamePresentationBit',
-                          'supportOverlapSending', 'patternPrecedence', 'releaseClause', 'allowDeviceOverride',
-                          'provideOutsideDialtone', 'callingPartyNumberingPlan', 'callingPartyNumberType',
-                          'calledPartyNumberingPlan', 'calledPartyNumberType', 'authorizationCodeRequired',
-                          'authorizationLevelRequired', 'clientCodeRequired', 'withTag', 'withValueClause',
-                          'resourcePriorityNamespaceName', 'routeClass', 'externalCallControl']
+    ROUTE_PATTERN_TAGS = [
+        'pattern',
+        'description',
+        'usage',
+        'routePartitionName',
+        'blockEnable',
+        'calledPartyTransformationMask',
+        'callingPartyTransformationMask',
+        'useCallingPartyPhoneMask',
+        'callingPartyPrefixDigits',
+        'dialPlanName',
+        'dialPlanWizardGenId',
+        'digitDiscardInstructionName',
+        'networkLocation',
+        'patternUrgency',
+        'prefixDigitsOut',
+        'routeFilterName',
+        'callingLinePresentationBit',
+        'callingNamePresentationBit',
+        'connectedLinePresentationBit',
+        'connectedNamePresentationBit',
+        'supportOverlapSending',
+        'patternPrecedence',
+        'releaseClause',
+        'allowDeviceOverride',
+        'provideOutsideDialtone',
+        'callingPartyNumberingPlan',
+        'callingPartyNumberType',
+        'calledPartyNumberingPlan',
+        'calledPartyNumberType',
+        'authorizationCodeRequired',
+        'authorizationLevelRequired',
+        'clientCodeRequired',
+        'withTag',
+        'withValueClause',
+        'resourcePriorityNamespaceName',
+        'routeClass',
+        'externalCallControl',
+    ]
 
     def list_route_pattern(self, **search_criteria):
-        search_criteria = self.filter_search_criteria(search_criteria, ['pattern', 'description', 'routePartitionName'],
-                                                      'pattern')
-        r = self.service.listRoutePattern(searchCriteria=search_criteria,
-                                          returnedTags={t: '' for t in self.ROUTE_PATTERN_TAGS})
+        search_criteria = self.filter_search_criteria(
+            search_criteria, ['pattern', 'description', 'routePartitionName'], 'pattern'
+        )
+        r = self.service.listRoutePattern(searchCriteria=search_criteria, returnedTags={t: '' for t in self.ROUTE_PATTERN_TAGS})
         return self.handle_list_response(r)
 
     def get_route_pattern(self, **search_criteria):
@@ -341,7 +360,7 @@ class AXLHelper:
             'authorizationCodeRequired': 'false',
             'authorizationLevelRequired': '0',
             'externalCallControl': '',
-            'destination': {'routeListName': route_list_name}
+            'destination': {'routeListName': route_list_name},
         }
         p = self.get_route_pattern(pattern=pattern, routePartitionName=partition)
         if p is None:
@@ -355,20 +374,30 @@ class AXLHelper:
         r = self.service.removeRoutePattern(uuid=uuid)
         return r
 
-
     ######### called party transforms
-    CDPTX_TAGS = ['pattern', 'description', 'usage', 'routePartitionName', 'calledPartyTransformationMask',
-                  'dialPlanName', 'digitDiscardInstructionName', 'patternUrgency', 'routeFilterName',
-                  'calledPartyPrefixDigits', 'calledPartyNumberingPlan', 'calledPartyNumberType',
-                  'mlppPreemptionDisabled']
+    CDPTX_TAGS = [
+        'pattern',
+        'description',
+        'usage',
+        'routePartitionName',
+        'calledPartyTransformationMask',
+        'dialPlanName',
+        'digitDiscardInstructionName',
+        'patternUrgency',
+        'routeFilterName',
+        'calledPartyPrefixDigits',
+        'calledPartyNumberingPlan',
+        'calledPartyNumberType',
+        'mlppPreemptionDisabled',
+    ]
 
     def list_called_party_transformation_pattern(self, **search_criteria):
-        search_criteria = self.filter_search_criteria(search_criteria,
-                                                      ['pattern', 'description', 'routePartitionName', 'dialPlanName',
-                                                       'routeFilterName'],
-                                                      'pattern')
-        r = self.service.listCalledPartyTransformationPattern(searchCriteria=search_criteria,
-                                                              returnedTags={t: '' for t in self.CDPTX_TAGS})
+        search_criteria = self.filter_search_criteria(
+            search_criteria, ['pattern', 'description', 'routePartitionName', 'dialPlanName', 'routeFilterName'], 'pattern'
+        )
+        r = self.service.listCalledPartyTransformationPattern(
+            searchCriteria=search_criteria, returnedTags={t: '' for t in self.CDPTX_TAGS}
+        )
         return self.handle_list_response(r)
 
     def add_called_party_transformation_pattern(self, **values):
@@ -384,8 +413,7 @@ class AXLHelper:
 
     def get_sip_profile(self, name):
         try:
-            r = self.service.getSipProfile(returnedTags={t: '' for t in self.SIP_PROFILE_TAGS},
-                                           name=name)
+            r = self.service.getSipProfile(returnedTags={t: '' for t in self.SIP_PROFILE_TAGS}, name=name)
         except zeep.exceptions.Fault as e:
             if e.message.startswith('Item not valid'):
                 return None
@@ -493,7 +521,7 @@ class AXLHelper:
             'destRouteString': 'false',
             'inactiveSDPRequired': 'false',
             'allowRRAndRSBandwidthModifier': 'false',
-            'connectCallBeforePlayingAnnouncement': 'false'
+            'connectCallBeforePlayingAnnouncement': 'false',
         }
         profile = dict(standard_sip_profile)
         profile.update(**sip_profile)
@@ -510,18 +538,26 @@ class AXLHelper:
     TRANS_PATTERN_TAGS = ['pattern', 'description', 'routePartitionName']
 
     def list_translation(self, **search_criteria):
-        search_criteria = self.filter_search_criteria(search_criteria, ['pattern', 'description', 'routePartitionName'],
-                                                      'pattern')
-        r = self.service.listTransPattern(searchCriteria=search_criteria,
-                                          returnedTags={t: '' for t in self.TRANS_PATTERN_TAGS})
+        search_criteria = self.filter_search_criteria(
+            search_criteria, ['pattern', 'description', 'routePartitionName'], 'pattern'
+        )
+        r = self.service.listTransPattern(searchCriteria=search_criteria, returnedTags={t: '' for t in self.TRANS_PATTERN_TAGS})
         return self.handle_list_response(r)
 
-    def add_translation(self, pattern, partition, description,
-                        digit_discard='', prefix_digits='',
-                        called_party_transformation_mask='',
-                        block_enable=False, urgency=True,
-                        outside_dial_tone=False, css_inheritance=True,
-                        dont_wait_for_idt=True):
+    def add_translation(
+        self,
+        pattern,
+        partition,
+        description,
+        digit_discard='',
+        prefix_digits='',
+        called_party_transformation_mask='',
+        block_enable=False,
+        urgency=True,
+        outside_dial_tone=False,
+        css_inheritance=True,
+        dont_wait_for_idt=True,
+    ):
         translation = {
             'pattern': pattern,
             'routePartitionName': partition,
@@ -534,17 +570,25 @@ class AXLHelper:
             'prefixDigitsOut': prefix_digits,
             'useOriginatorCss': css_inheritance,
             'dontWaitForIDTOnSubsequentHops': dont_wait_for_idt,
-            'calledPartyTransformationMask': called_party_transformation_mask
+            'calledPartyTransformationMask': called_party_transformation_mask,
         }
         r = self.service.addTransPattern(transPattern=translation)
         return r
 
-    def add_update_translation(self, pattern, partition, description,
-                               digit_discard='', prefix_digits='',
-                               called_party_transformation_mask='',
-                               block_enable=False, urgency=True,
-                               outside_dial_tone=False, css_inheritance=True,
-                               dont_wait_for_idt=True):
+    def add_update_translation(
+        self,
+        pattern,
+        partition,
+        description,
+        digit_discard='',
+        prefix_digits='',
+        called_party_transformation_mask='',
+        block_enable=False,
+        urgency=True,
+        outside_dial_tone=False,
+        css_inheritance=True,
+        dont_wait_for_idt=True,
+    ):
         translation = {
             'pattern': pattern,
             'routePartitionName': partition,
@@ -557,13 +601,13 @@ class AXLHelper:
             'prefixDigitsOut': prefix_digits,
             'useOriginatorCss': css_inheritance,
             'dontWaitForIDTOnSubsequentHops': dont_wait_for_idt,
-            'calledPartyTransformationMask': called_party_transformation_mask
+            'calledPartyTransformationMask': called_party_transformation_mask,
         }
         try:
-            p = self.service.getTransPattern(pattern=pattern,
-                                             routePartitionName=partition,
-                                             returnedTags={'pattern': '', 'routePartitionName': ''})
-        except zeep.exceptions.Fault as e:
+            p = self.service.getTransPattern(
+                pattern=pattern, routePartitionName=partition, returnedTags={'pattern': '', 'routePartitionName': ''}
+            )
+        except zeep.exceptions.Fault:
             p = self.service.addTransPattern(transPattern=translation)
         else:
             translation.pop('usage', None)
@@ -589,13 +633,12 @@ class AXLHelper:
             'callingLinePresentationBit': 'Default',
             'callingPartyNumberingPlan': plan,
             'callingPartyNumberType': type,
-            'mlppPreemptionDisabled': 'false'
+            'mlppPreemptionDisabled': 'false',
         }
         try:
-            p = self.service.getCallingPartyTransformationPattern(pattern=pattern,
-                                                                  routePartitionName=partition,
-                                                                  returnedTags={'pattern': '',
-                                                                                'routePartitionName': ''})
+            p = self.service.getCallingPartyTransformationPattern(
+                pattern=pattern, routePartitionName=partition, returnedTags={'pattern': '', 'routePartitionName': ''}
+            )
         except zeep.exceptions.Fault:
             p = self.service.addCallingPartyTransformationPattern(callingPartyTransformationPattern=trans)
         else:
@@ -614,33 +657,39 @@ class AXLHelper:
             else:
                 raise
         else:
-            lrg = {'uuid': r['return']['localRouteGroup']['uuid'], 'name': name, 'description': description,
-                   'newName': name, 'newDescription': description}
+            lrg = {
+                'uuid': r['return']['localRouteGroup']['uuid'],
+                'name': name,
+                'description': description,
+                'newName': name,
+                'newDescription': description,
+            }
             r = self.service.updateLocalRouteGroup(localRouteGroup=lrg)
         return r['return']
 
     def add_update_route_list(self, **values):
         try:
             r = self.service.getRouteList(name=values['name'])
-        except zeep.exceptions.Fault as e:
+        except zeep.exceptions.Fault:
             r = self.service.addRouteList(routeList=values)
         else:
             r = self.service.updateRouteList(**values)
         return r['return']
 
-    def add_update_advertised_pattern(self, pattern, description, pattern_type,
-                                      hosted_pstn_rule='No PSTN', pstn_strip=0, pstn_prepend=''):
+    def add_update_advertised_pattern(
+        self, pattern, description, pattern_type, hosted_pstn_rule='No PSTN', pstn_strip=0, pstn_prepend=''
+    ):
         ad_pattern = {
             'pattern': pattern,
             'description': description,
             'patternType': pattern_type,
             'hostedRoutePSTNRule': hosted_pstn_rule,
             'pstnFailStrip': pstn_strip,
-            'pstnFailPrepend': pstn_prepend
+            'pstnFailPrepend': pstn_prepend,
         }
         try:
             r = self.service.getAdvertisedPatterns(pattern=pattern)
-        except zeep.exceptions.Fault as e:
+        except zeep.exceptions.Fault:
             r = self.service.addAdvertisedPatterns(advertisedPatterns=ad_pattern)
         else:
             r = self.service.updateAdvertisedPatterns(**ad_pattern)
@@ -649,7 +698,7 @@ class AXLHelper:
     def add_update_date_time_group(self, dt_group):
         try:
             r = self.service.getDateTimeGroup(name=dt_group['name'])
-        except zeep.exceptions.Fault as e:
+        except zeep.exceptions.Fault:
             r = self.service.addDateTimeGroup(dateTimeGroup=dt_group)
         else:
             r = self.service.updateDateTimeGroup(**dt_group)
@@ -658,7 +707,7 @@ class AXLHelper:
     def add_update_device_pool(self, dp):
         try:
             r = self.service.getDevicePool(name=dp['name'])
-        except zeep.exceptions.Fault as e:
+        except zeep.exceptions.Fault:
             r = self.service.addDevicePool(devicePool=dp)
         else:
             r = self.service.updateDevicePool(**dp)
@@ -667,7 +716,7 @@ class AXLHelper:
     def add_update_line(self, dn):
         try:
             r = self.service.getLine(pattern=dn['pattern'], routePartitionName=dn['routePartitionName'])
-        except zeep.exceptions.Fault as e:
+        except zeep.exceptions.Fault:
             r = self.service.addLine(line=dn)
         else:
             dn.pop('usage', None)
@@ -677,7 +726,7 @@ class AXLHelper:
     def add_update_phone(self, phone):
         try:
             r = self.service.getPhone(name=phone['name'])
-        except zeep.exceptions.Fault as e:
+        except zeep.exceptions.Fault:
             r = self.service.addPhone(phone=phone)
         else:
             to_pop = ['product', 'protocolSide', 'class', 'protocol']
@@ -689,7 +738,7 @@ class AXLHelper:
     def add_update_fgt(self, fgt):
         try:
             r = self.service.getFeatureGroupTemplate(name=fgt['name'])
-        except zeep.exceptions.Fault as e:
+        except zeep.exceptions.Fault:
             r = self.service.addFeatureGroupTemplate(featureGroupTemplate=fgt)
         else:
             r = self.service.updateFeatureGroupTemplate(**fgt)
@@ -698,7 +747,7 @@ class AXLHelper:
     def add_update_ldap_filter(self, filter):
         try:
             r = self.service.getLdapFilter(name=filter['name'])
-        except zeep.exceptions.Fault as e:
+        except zeep.exceptions.Fault:
             r = self.service.addLdapFilter(ldapFilter=filter)
         else:
             r = self.service.updateLdapFilter(**filter)
@@ -707,7 +756,7 @@ class AXLHelper:
     def add_update_ldap_directory(self, directory):
         try:
             r = self.service.getLdapDirectory(name=directory['name'])
-        except zeep.exceptions.Fault as e:
+        except zeep.exceptions.Fault:
             r = self.service.addLdapDirectory(ldapDirectory=directory)
         else:
             attrs_not_in_update = ['mailId', 'directoryUri', 'middleName', 'phoneNumber']
@@ -732,14 +781,14 @@ class AXLHelper:
             'allowReplaceHeader': 'false',
             'transmitSecurityStatus': 'false',
             'sipV150OutboundSdpOfferFiltering': 'Use Default Filter',
-            'allowChargingHeader': 'false'
+            'allowChargingHeader': 'false',
         }
         security_profile = dict(default_security_profile)
         security_profile.update(**profile)
         profile = security_profile
         try:
             r = self.service.getSipTrunkSecurityProfile(name=profile['name'])
-        except zeep.exceptions.Fault as e:
+        except zeep.exceptions.Fault:
             r = self.service.addSipTrunkSecurityProfile(sipTrunkSecurityProfile=profile)
         else:
             r = self.service.updateSipTrunkSecurityProfile(**profile)
@@ -819,7 +868,7 @@ class AXLHelper:
         trunk = sip_trunk
         try:
             r = self.service.getSipTrunk(name=trunk['name'])
-        except zeep.exceptions.Fault as e:
+        except zeep.exceptions.Fault:
             r = self.service.addSipTrunk(sipTrunk=trunk)
         else:
             attrs_not_in_update = ['product', 'protocolSide', 'loadInformation', 'protocol', 'traceFlag', 'class']
@@ -832,7 +881,7 @@ class AXLHelper:
     def add_update_route_group(self, route_group):
         try:
             r = self.service.getRouteGroup(name=route_group['name'])
-        except zeep.exceptions.Fault as e:
+        except zeep.exceptions.Fault:
             r = self.service.addRouteGroup(routeGroup=route_group)
         else:
             r = self.service.updateRouteGroup(**route_group)
@@ -840,9 +889,10 @@ class AXLHelper:
 
     def add_update_sip_route_pattern(self, route_pattern):
         try:
-            r = self.service.getSipRoutePattern(pattern=route_pattern['pattern'],
-                                                routePartitionName=route_pattern['routePartitionName'])
-        except zeep.exceptions.Fault as e:
+            r = self.service.getSipRoutePattern(
+                pattern=route_pattern['pattern'], routePartitionName=route_pattern['routePartitionName']
+            )
+        except zeep.exceptions.Fault:
             r = self.service.addSipRoutePattern(sipRoutePattern=route_pattern)
         else:
             attrs_not_in_update = ['usage']
@@ -910,13 +960,13 @@ class AXLHelper:
             'allowControlOfDeviceFromCti': True,
             'ignorePresentationIndicators': False,
             'enableExtensionMobility': True,
-            'servicesUrl': None
+            'servicesUrl': None,
         }
         udt = dict(base_udt)
         udt.update(**site_udt)
         try:
             r = self.service.getUniversalDeviceTemplate(name=udt['name'])
-        except zeep.exceptions.Fault as e:
+        except zeep.exceptions.Fault:
             r = self.service.addUniversalDeviceTemplate(universalDeviceTemplate=udt)
         else:
             r = self.service.updateUniversalDeviceTemplate(**udt)
@@ -952,13 +1002,13 @@ class AXLHelper:
             'noCoverageExtCallsDestination': None,
             'unregisteredIntCallsDestination': None,
             'unregisteredExtCallsDestination': None,
-            'ctiFailureDestination': None
+            'ctiFailureDestination': None,
         }
         ult = dict(base_ult)
         ult.update(**site_ult)
         try:
             r = self.service.getUniversalLineTemplate(name=ult['name'])
-        except zeep.exceptions.Fault as e:
+        except zeep.exceptions.Fault:
             r = self.service.addUniversalLineTemplate(universalLineTemplate=ult)
         else:
             r = self.service.updateUniversalLineTemplate(**ult)
@@ -967,7 +1017,7 @@ class AXLHelper:
     def add_update_user_profile_provision(self, upp):
         try:
             r = self.service.getUserProfileProvision(name=upp['name'])
-        except zeep.exceptions.Fault as e:
+        except zeep.exceptions.Fault:
             r = self.service.addUserProfileProvision(userProfileProvision=upp)
         else:
             r = self.service.updateUserProfileProvision(**upp)
@@ -977,7 +1027,7 @@ class AXLHelper:
     def add_update_cti_rp(self, cti_rp):
         try:
             r = self.service.getCtiRoutePoint(name=cti_rp['name'])
-        except zeep.exceptions.Fault as e:
+        except zeep.exceptions.Fault:
             r = self.service.addCtiRoutePoint(ctiRoutePoint=cti_rp)
         else:
             to_pop = ['product', 'protocolSide', 'class', 'protocol']
@@ -989,7 +1039,7 @@ class AXLHelper:
     def add_update_app_user(self, app_user):
         try:
             r = self.service.getAppUser(userid=app_user['userid'])
-        except zeep.exceptions.Fault as e:
+        except zeep.exceptions.Fault:
             r = self.service.addAppUser(appUser=app_user)
         else:
             r = self.service.updateAppUser(**app_user)
@@ -998,7 +1048,7 @@ class AXLHelper:
     def add_update_phone_button_template(self, pbt):
         try:
             r = self.service.getPhoneButtonTemplate(name=pbt['name'])
-        except zeep.exceptions.Fault as e:
+        except zeep.exceptions.Fault:
             r = self.service.addPhoneButtonTemplate(phoneButtonTemplate=pbt)
         else:
             pbt.pop('basePhoneTemplateName', None)
