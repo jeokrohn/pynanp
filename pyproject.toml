@@ -1,0 +1,11 @@
+[project]
+name = "pynanp"
+version = "0.1.0"
+description = "NANP dialing pattern generator for Cisco UCM"
+requires-python = ">=3.13"
+dependencies = [
+    "zeep",
+    "xmljson",
+    "requests",
+]
+
